@@ -297,3 +297,51 @@ def get_deployment_logs(application_name: str):
         "pod_count": len(pod_logs),
         "pods": pod_logs
     }
+
+
+@app.get("/deployments/{application_name}/access")
+def get_deployment_access(application_name: str):
+
+    config.load_kube_config(context="kind-deployflow")
+
+    core_v1 = client.CoreV1Api()
+
+    try:
+        service = core_v1.read_namespaced_service(
+            name=application_name,
+            namespace="default"
+        )
+
+    except ApiException as e:
+        if e.status == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Service for deployment '{application_name}' not found"
+            )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve service from Kubernetes"
+        )
+
+    if service.spec.type != "NodePort":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Service '{application_name}' is not exposed as NodePort"
+        )
+
+    if not service.spec.ports:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No ports configured for service '{application_name}'"
+        )
+
+    node_port = service.spec.ports[0].node_port
+
+    return {
+        "application_name": application_name,
+        "service": service.metadata.name,
+        "service_type": service.spec.type,
+        "port": node_port,
+        "url": f"http://localhost:{node_port}"
+    }
