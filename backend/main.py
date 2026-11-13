@@ -1,12 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
+from datetime import datetime
+
 
 app = FastAPI(
     title="DeployFlow API",
     description="Self-Service Application Deployment Platform",
-    version="0.3.0"
+    version="0.5.0"
 )
+
+
+# Temporary in-memory deployment history
+deployment_history = []
 
 
 class DeploymentRequest(BaseModel):
@@ -93,7 +100,7 @@ def create_deployment(deployment: DeploymentRequest):
         )
         deployment_action = "created"
 
-    except client.exceptions.ApiException as e:
+    except ApiException as e:
         if e.status == 409:
             apps_v1.replace_namespaced_deployment(
                 name=deployment.application_name,
@@ -132,7 +139,7 @@ def create_deployment(deployment: DeploymentRequest):
         )
         service_action = "created"
 
-    except client.exceptions.ApiException as e:
+    except ApiException as e:
         if e.status == 409:
             core_v1.replace_namespaced_service(
                 name=deployment.application_name,
@@ -142,6 +149,21 @@ def create_deployment(deployment: DeploymentRequest):
             service_action = "updated"
         else:
             raise
+
+    # Record deployment history
+    history_entry = {
+        "application_name": deployment.application_name,
+        "environment": deployment.environment,
+        "cpu": deployment.cpu,
+        "memory": deployment.memory,
+        "replicas": deployment.replicas,
+        "deployment": deployment_action,
+        "service": service_action,
+        "image": "nginx:latest",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+    deployment_history.append(history_entry)
 
     return {
         "message": "Deployment completed successfully",
@@ -156,8 +178,6 @@ def create_deployment(deployment: DeploymentRequest):
 
 @app.get("/deployments/{application_name}")
 def get_deployment_status(application_name: str):
-    from fastapi import HTTPException
-    from kubernetes.client.exceptions import ApiException
 
     config.load_kube_config(context="kind-deployflow")
     apps_v1 = client.AppsV1Api()
@@ -167,12 +187,14 @@ def get_deployment_status(application_name: str):
             name=application_name,
             namespace="default"
         )
+
     except ApiException as e:
         if e.status == 404:
             raise HTTPException(
                 status_code=404,
                 detail=f"Deployment '{application_name}' not found"
             )
+
         raise HTTPException(
             status_code=502,
             detail="Could not retrieve deployment from Kubernetes"
@@ -198,45 +220,80 @@ def get_deployment_status(application_name: str):
     }
 
 
-@app.get("/deployments/{application_name}")
-def get_deployment_status(application_name: str):
-    from fastapi import HTTPException
-    from kubernetes.client.exceptions import ApiException
+@app.get("/deployments")
+def get_deployment_history():
+
+    return {
+        "count": len(deployment_history),
+        "deployments": deployment_history
+    }
+
+
+@app.get("/deployments/{application_name}/logs")
+def get_deployment_logs(application_name: str):
 
     config.load_kube_config(context="kind-deployflow")
-    apps_v1 = client.AppsV1Api()
+
+    core_v1 = client.CoreV1Api()
 
     try:
-        deployment = apps_v1.read_namespaced_deployment(
-            name=application_name,
-            namespace="default"
+        pods = core_v1.list_namespaced_pod(
+            namespace="default",
+            label_selector=f"app={application_name}"
         )
-    except ApiException as e:
-        if e.status == 404:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Deployment '{application_name}' not found"
-            )
+
+    except ApiException:
         raise HTTPException(
             status_code=502,
-            detail="Could not retrieve deployment from Kubernetes"
+            detail="Could not retrieve pods from Kubernetes"
         )
 
-    desired = deployment.spec.replicas or 0
-    ready = deployment.status.ready_replicas or 0
-    available = deployment.status.available_replicas or 0
+    if not pods.items:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pods found for deployment '{application_name}'"
+        )
 
-    if ready == desired and desired > 0:
-        status = "Running"
-    elif ready > 0:
-        status = "Partially Running"
-    else:
-        status = "Pending"
+    pod_logs = []
+
+    for pod in pods.items:
+
+        pod_name = pod.metadata.name
+
+        try:
+            logs = core_v1.read_namespaced_pod_log(
+                name=pod_name,
+                namespace="default",
+                tail_lines=100
+            )
+
+            # Ensure logs are returned as clean text
+            if isinstance(logs, bytes):
+                logs = logs.decode("utf-8", errors="replace")
+
+            elif isinstance(logs, str) and logs.startswith(("b'", 'b"')):
+                try:
+                    import ast
+                    decoded_logs = ast.literal_eval(logs)
+                    if isinstance(decoded_logs, bytes):
+                        logs = decoded_logs.decode("utf-8", errors="replace")
+                except (ValueError, SyntaxError, UnicodeDecodeError):
+                    pass
+
+            pod_logs.append({
+                "pod": pod_name,
+                "logs": logs
+            })
+
+        except ApiException:
+            pod_logs.append({
+                "pod": pod_name,
+                "logs": "",
+                "error": "Could not retrieve logs for this pod"
+            })
 
     return {
         "application_name": application_name,
-        "status": status,
-        "replicas": desired,
-        "ready_replicas": ready,
-        "available_replicas": available
+        "pod_count": len(pod_logs),
+        "pods": pod_logs
     }
