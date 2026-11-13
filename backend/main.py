@@ -152,3 +152,91 @@ def create_deployment(deployment: DeploymentRequest):
         "replicas": deployment.replicas,
         "image": "nginx:latest"
     }
+
+
+@app.get("/deployments/{application_name}")
+def get_deployment_status(application_name: str):
+    from fastapi import HTTPException
+    from kubernetes.client.exceptions import ApiException
+
+    config.load_kube_config(context="kind-deployflow")
+    apps_v1 = client.AppsV1Api()
+
+    try:
+        deployment = apps_v1.read_namespaced_deployment(
+            name=application_name,
+            namespace="default"
+        )
+    except ApiException as e:
+        if e.status == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Deployment '{application_name}' not found"
+            )
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve deployment from Kubernetes"
+        )
+
+    desired = deployment.spec.replicas or 0
+    ready = deployment.status.ready_replicas or 0
+    available = deployment.status.available_replicas or 0
+
+    if ready == desired and desired > 0:
+        status = "Running"
+    elif ready > 0:
+        status = "Partially Running"
+    else:
+        status = "Pending"
+
+    return {
+        "application_name": application_name,
+        "status": status,
+        "replicas": desired,
+        "ready_replicas": ready,
+        "available_replicas": available
+    }
+
+
+@app.get("/deployments/{application_name}")
+def get_deployment_status(application_name: str):
+    from fastapi import HTTPException
+    from kubernetes.client.exceptions import ApiException
+
+    config.load_kube_config(context="kind-deployflow")
+    apps_v1 = client.AppsV1Api()
+
+    try:
+        deployment = apps_v1.read_namespaced_deployment(
+            name=application_name,
+            namespace="default"
+        )
+    except ApiException as e:
+        if e.status == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Deployment '{application_name}' not found"
+            )
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve deployment from Kubernetes"
+        )
+
+    desired = deployment.spec.replicas or 0
+    ready = deployment.status.ready_replicas or 0
+    available = deployment.status.available_replicas or 0
+
+    if ready == desired and desired > 0:
+        status = "Running"
+    elif ready > 0:
+        status = "Partially Running"
+    else:
+        status = "Pending"
+
+    return {
+        "application_name": application_name,
+        "status": status,
+        "replicas": desired,
+        "ready_replicas": ready,
+        "available_replicas": available
+    }
