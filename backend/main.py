@@ -1,8 +1,11 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from datetime import datetime
+import subprocess
+import socket
 
 
 app = FastAPI(
@@ -12,8 +15,23 @@ app = FastAPI(
 )
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # Temporary in-memory deployment history
 deployment_history = []
+
+# Local Kubernetes port-forward processes
+port_forward_processes = {}
 
 
 class DeploymentRequest(BaseModel):
@@ -316,7 +334,7 @@ def get_deployment_access(application_name: str):
         if e.status == 404:
             raise HTTPException(
                 status_code=404,
-                detail=f"Service for deployment '{application_name}' not found"
+                detail=f"Service '{application_name}' not found"
             )
 
         raise HTTPException(
@@ -324,24 +342,78 @@ def get_deployment_access(application_name: str):
             detail="Could not retrieve service from Kubernetes"
         )
 
-    if service.spec.type != "NodePort":
+    # Check for an existing port-forward
+    existing = port_forward_processes.get(application_name)
+
+    if existing:
+        process = existing.get("process")
+        local_port = existing.get("port")
+
+        if process and process.poll() is None:
+            return {
+                "application_name": application_name,
+                "service": service.metadata.name,
+                "service_type": service.spec.type,
+                "port": local_port,
+                "url": f"http://localhost:{local_port}"
+            }
+
+        # Remove stale port-forward information
+        port_forward_processes.pop(application_name, None)
+
+    # Find an available local port
+    local_port = None
+
+    for candidate in range(8090, 8191):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("127.0.0.1", candidate))
+                local_port = candidate
+                break
+            except OSError:
+                continue
+
+    if local_port is None:
         raise HTTPException(
-            status_code=400,
-            detail=f"Service '{application_name}' is not exposed as NodePort"
+            status_code=500,
+            detail="No available local port found"
         )
 
-    if not service.spec.ports:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No ports configured for service '{application_name}'"
-        )
+    # Start kubectl port-forward
+    process = subprocess.Popen(
+        [
+            "kubectl",
+            "--context",
+            "kind-deployflow",
+            "port-forward",
+            f"service/{application_name}",
+            f"{local_port}:80"
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
 
-    node_port = service.spec.ports[0].node_port
+    port_forward_processes[application_name] = {
+        "process": process,
+        "port": local_port
+    }
+
+    # Give kubectl time to establish the tunnel
+    import time
+    time.sleep(1)
+
+    if process.poll() is not None:
+        port_forward_processes.pop(application_name, None)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Could not start Kubernetes port-forward"
+        )
 
     return {
         "application_name": application_name,
         "service": service.metadata.name,
         "service_type": service.spec.type,
-        "port": node_port,
-        "url": f"http://localhost:{node_port}"
+        "port": local_port,
+        "url": f"http://localhost:{local_port}"
     }
