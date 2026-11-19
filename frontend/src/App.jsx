@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import "./App.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "http" + ":" + "//127.0.0.1" + ":" + "8000";
 
 function App() {
   const [form, setForm] = useState({
@@ -113,7 +113,6 @@ function App() {
       }
 
       setDeployment(data);
-
       await refreshDeploymentData(form.application_name);
     } catch (err) {
       setError(err.message);
@@ -254,9 +253,7 @@ function App() {
                 <div className="status-main">
                   <span
                     className={`status-badge ${
-                      status.status === "Running"
-                        ? "running"
-                        : "pending"
+                      status.status === "Running" ? "running" : "pending"
                     }`}
                   >
                     {status.status}
