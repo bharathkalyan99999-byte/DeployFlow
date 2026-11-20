@@ -1,4 +1,3 @@
-[DeployFlow_README.md](https://github.com/user-attachments/files/35140519/DeployFlow_README.md)
 # DeployFlow
 
 ## Self-Service Kubernetes Application Deployment Platform
@@ -36,7 +35,7 @@ DeployFlow demonstrates how a self-service deployment workflow can be implemente
 
 The platform connects a web dashboard to a FastAPI backend, which uses the Kubernetes Python client to create and monitor Kubernetes resources.
 
-### Core Capabilities
+### Core capabilities
 
 - Self-service application deployment
 - CPU and memory configuration
@@ -44,8 +43,8 @@ The platform connects a web dashboard to a FastAPI backend, which uses the Kuber
 - Environment selection
 - Automatic Kubernetes Deployment creation
 - Automatic Kubernetes Service creation
-- Deployment readiness monitoring
-- Pod status monitoring
+- Live deployment status monitoring
+- Pod readiness monitoring
 - Pod log retrieval
 - Local application access through port forwarding
 - Dockerized frontend and backend
@@ -56,108 +55,82 @@ The platform connects a web dashboard to a FastAPI backend, which uses the Kuber
 
 ```text
                          User
-                           |
-                           v
-                +----------------------+
-                |  React Web Dashboard |
-                +----------------------+
-                           |
-                           | REST API
-                           v
-                +----------------------+
-                |    FastAPI Backend   |
-                +----------------------+
-                           |
-                           | Kubernetes Python Client
-                           v
-                +----------------------+
-                |  Kind Kubernetes     |
-                |      Cluster         |
-                +----------------------+
-                     |            |
-                     v            v
-              +------------+  +---------+
-              | Deployment |  | Service |
-              +------------+  +---------+
-                     |
-                     v
-                +-----------+
-                | Kubernetes|
-                |   Pods    |
-                +-----------+
-                     |
-                     v
-                +------------+
-                |   Nginx    |
-                | Application|
-                +------------+
-                     |
-                     v
-              Local Port Forward
-                     |
-                     v
-                   Browser
+                          |
+                          v
+                 React Web Dashboard
+                          |
+                          | REST API
+                          v
+                   FastAPI Backend
+                          |
+                          | Kubernetes Python Client
+                          v
+                  Kind Kubernetes Cluster
+                          |
+                +---------+---------+
+                |                   |
+                v                   v
+           Deployment            Service
+                |
+                v
+          Kubernetes Pods
+                |
+                v
+        Nginx Application
+                |
+                v
+        Local Port Forward
+                |
+                v
+             Browser
 ```
-
-### Architecture Flow
-
-**React Dashboard → FastAPI → Kubernetes API → Deployment/Service → Pods → Nginx → Port Forward → Browser**
 
 ---
 
 ## Key Features
 
 ### Self-Service Deployment
-
 Users configure deployments through the web dashboard without manually creating Kubernetes manifests.
 
 ### Resource Configuration
-
 Each deployment can specify:
-
 - CPU requests and limits
 - Memory requests and limits
 - Number of replicas
 - Deployment environment
 
 ### Kubernetes Automation
-
 The FastAPI backend uses the Kubernetes Python client to create and manage:
-
 - Kubernetes Deployments
 - Kubernetes Services
 - Kubernetes Pods
 
 ### Deployment Monitoring
-
-The dashboard displays deployment information including:
-
+The dashboard displays live deployment information:
 - Deployment status
 - Desired replicas
 - Ready replicas
 - Available replicas
 
 ### Pod Log Monitoring
-
 DeployFlow retrieves logs from running Kubernetes pods and displays them directly in the dashboard.
 
 ### Application Access
-
 After deployment, DeployFlow creates a local Kubernetes port-forward so the deployed application can be opened directly from the dashboard.
 
 ---
 
 ## Technology Stack
 
-| Layer | Technologies |
-|---|---|
-| Frontend | React, Vite, JavaScript, CSS |
-| Backend | Python, FastAPI, Uvicorn |
-| Kubernetes Integration | Kubernetes Python Client |
-| Containerization | Docker |
-| Orchestration | Kubernetes, Kind |
-| CLI | kubectl |
-| Application Workload | Nginx |
+| Layer                  | Technologies                    |
+|------------------------|---------------------------------|
+| Frontend               | React, Vite, JavaScript, CSS    |
+| Backend                | Python, FastAPI, Uvicorn        |
+| Kubernetes Integration | Kubernetes Python Client        |
+| Containerization       | Docker                          |
+| Orchestration          | Kubernetes, Kind                |
+| CLI                    | kubectl                         |
+| Application Workload   | Nginx                           |
 
 ---
 
@@ -178,21 +151,21 @@ After deployment, DeployFlow creates a local Kubernetes port-forward so the depl
 8. DeployFlow monitors deployment readiness.
 9. Pod logs are retrieved.
 10. A local port-forward is created.
-11. The user opens the deployed application.
+11. User opens the deployed application.
 
 ---
 
 ## API Endpoints
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/` | API welcome message |
-| `GET` | `/health` | Backend health check |
-| `POST` | `/deployments` | Create a Kubernetes deployment |
-| `GET` | `/deployments` | Retrieve deployment history |
-| `GET` | `/deployments/{application_name}` | Retrieve deployment status |
-| `GET` | `/deployments/{application_name}/logs` | Retrieve pod logs |
-| `GET` | `/deployments/{application_name}/access` | Generate application access |
+| Method | Endpoint                                 | Purpose                        |
+|--------|------------------------------------------|--------------------------------|
+| GET    | `/`                                      | API welcome message            |
+| GET    | `/health`                                | Backend health check           |
+| POST   | `/deployments`                           | Create a Kubernetes deployment |
+| GET    | `/deployments`                           | Retrieve deployment history    |
+| GET    | `/deployments/{application_name}`        | Retrieve deployment status     |
+| GET    | `/deployments/{application_name}/logs`   | Retrieve pod logs              |
+| GET    | `/deployments/{application_name}/access` | Generate application access    |
 
 ---
 
@@ -235,15 +208,13 @@ Ready:     2
 Available: 2
 ```
 
-The dashboard also displays logs retrieved from the running pods.
+The dashboard also displays logs retrieved from both running pods.
 
 ---
 
 ## Running the Project Locally
 
 ### Prerequisites
-
-Install:
 
 - Node.js
 - Python 3
@@ -273,11 +244,7 @@ pip install -r requirements.txt
 python3 -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-The API will be available at:
-
-```text
-http://127.0.0.1:8000
-```
+The API will be available at `http://127.0.0.1:8000`.
 
 ### 3. Start the Frontend
 
@@ -289,11 +256,7 @@ npm install
 npm run dev
 ```
 
-Open the dashboard at:
-
-```text
-http://localhost:5173
-```
+Open the dashboard in your browser at `http://localhost:5173`.
 
 ### 4. Deploy an Application
 
@@ -314,15 +277,11 @@ From the dashboard:
 
 DeployFlow includes Dockerfiles for both the frontend and backend.
 
-### Build the Backend
-
 ```bash
+# Build the backend
 docker build -t deployflow-backend ./backend
-```
 
-### Build the Frontend
-
-```bash
+# Build the frontend
 docker build -t deployflow-frontend ./frontend
 ```
 
@@ -332,45 +291,43 @@ docker build -t deployflow-frontend ./frontend
 
 The complete deployment workflow has been tested locally through the actual React dashboard.
 
-### Tested Flow
+**Tested flow:**
 
 ```text
 React Dashboard
-       |
-       v
+      |
+      v
 FastAPI Backend
-       |
-       v
+      |
+      v
 Kubernetes Deployment
-       |
-       v
+      |
+      v
 2 Running Pods
-       |
-       v
+      |
+      v
 Kubernetes Service
-       |
-       v
+      |
+      v
 Port Forward
-       |
-       v
+      |
+      v
 Nginx Application
-       |
-       v
+      |
+      v
 HTTP 200 OK
 ```
 
-### Verified Results
+**Verified results:**
 
-- Deployment status: **Running**
-- Desired replicas: **2**
-- Ready replicas: **2**
-- Available replicas: **2**
+- Deployment status: Running
+- Desired replicas: 2
+- Ready replicas: 2
+- Available replicas: 2
 - Logs displayed from both Kubernetes pods
 - Application access link generated
-- Deployed Nginx application opened successfully
-- Application returned **HTTP 200 OK**
 
-This validates the complete workflow from the frontend dashboard to the running Kubernetes application.
+The deployed Nginx application opened successfully through the generated access link and returned `HTTP/1.1 200 OK`. This validates the complete workflow from the frontend dashboard to the running Kubernetes application.
 
 ---
 
@@ -379,7 +336,6 @@ This validates the complete workflow from the frontend dashboard to the running 
 DeployFlow is currently a local Kubernetes self-service deployment platform using Kind.
 
 The current MVP demonstrates:
-
 - Kubernetes automation
 - REST API development
 - Containerization
@@ -395,8 +351,6 @@ The current implementation deploys `nginx:latest` as the application image.
 
 ## Future Improvements
 
-Potential improvements include:
-
 - Custom container image selection
 - User authentication and authorization
 - Persistent deployment history
@@ -406,7 +360,7 @@ Potential improvements include:
 - Prometheus and Grafana integration
 - CI/CD pipeline integration
 - Multiple Kubernetes environments
-- Cloud Kubernetes support using AKS, EKS, or GKE
+- Cloud Kubernetes support (AKS, EKS, or GKE)
 
 ---
 
@@ -430,7 +384,5 @@ Potential improvements include:
 ## Author
 
 **Bharath Kalyan Voggu**
-
-BTech — Computer Science and Business Systems
-
-MSc — Computer Science and Technology with Business Development
+BTech, Computer Science and Business Systems
+MSc, Computer Science and Technology with Business Development
